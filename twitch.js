@@ -1,4 +1,4 @@
-import tmi from 'tmi.js';
+import * as tmi from 'tmi.js';
 
 let client;
 const JOIN_COMMAND = '!join';
@@ -15,7 +15,7 @@ export function setupTwitch(channel, callback) {
         channels: [channel]
     };
 
-    client = new tmi.client(opts);
+    client = new tmi.Client(opts);
 
     client.on('message', onMessageHandler);
     client.on('connected', onConnectedHandler);
