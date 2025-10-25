@@ -1,145 +1,175 @@
 import * as THREE from 'three';
 import * as CANNON from 'cannon-es';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { TwitchConnector } from './twitch.js';
-import { Marble } from './marble.js';
+import { setupTwitch } from './twitch.js';
+import { createMarble } from './marble.js';
 import { createTrack } from './track.js';
-import { UI } from './ui.js';
+import { updatePlayerList, updateLeaderboard, setConnectionStatus, showRaceControls, resetUI } from './ui.js';
 
-class MarbleRaceGame {
-    constructor() {
-        this.initGraphics();
-        this.initPhysics();
-        this.initScene();
-        this.initUI();
-        this.initEventListeners();
+let scene, camera, renderer, controls;
+let physicsWorld;
+let backgroundTexture;
 
-        this.marbles = {};
-        this.gameState = 'idle'; // idle, joining, racing, finished
-        this.joinCommand = '!join';
-    }
+const marbles = [];
+const players = new Map(); // username -> marble object
 
-    initGraphics() {
-        this.scene = new THREE.Scene();
-        this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-        this.camera.position.set(0, 20, 30);
+let raceState = 'waiting'; // waiting, countdown, racing, finished
+let countdownTimer = 15;
+let countdownInterval;
 
-        this.renderer = new THREE.WebGLRenderer({ canvas: document.querySelector('#c'), antialias: true, alpha: true });
-        this.renderer.setSize(window.innerWidth, window.innerHeight);
-        this.renderer.setPixelRatio(window.devicePixelRatio);
-        this.renderer.setClearColor(0x000000, 0); // Transparent background
+const JOIN_COMMAND = '!join';
+const MAX_PLAYERS = 50;
 
-        this.controls = new OrbitControls(this.camera, this.renderer.domElement);
-        this.controls.enableDamping = true;
-    }
+function init() {
+    // Scene
+    scene = new THREE.Scene();
+    backgroundTexture = new THREE.TextureLoader().load('background.png');
+    scene.background = backgroundTexture;
 
-    initPhysics() {
-        this.world = new CANNON.World({
-            gravity: new CANNON.Vec3(0, -9.82, 0)
-        });
-    }
+    // Camera
+    camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+    camera.position.set(0, 20, 30);
 
-    initScene() {
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
-        this.scene.add(ambientLight);
+    // Renderer
+    renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('game-canvas'), antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.shadowMap.enabled = true;
 
-        const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
-        directionalLight.position.set(5, 10, 7);
-        this.scene.add(directionalLight);
+    // Lights
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+    scene.add(ambientLight);
 
-        this.track = createTrack(this.scene, this.world);
-    }
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+    directionalLight.position.set(10, 20, 5);
+    directionalLight.castShadow = true;
+    scene.add(directionalLight);
 
-    initUI() {
-        this.ui = new UI();
-        this.twitch = new TwitchConnector(
-            (channel) => this.ui.onConnected(channel),
-            (channel) => this.ui.onDisconnected(channel),
-            (user) => this.handleJoin(user)
-        );
-    }
-    
-    initEventListeners() {
-        window.addEventListener('resize', () => this.onWindowResize());
-        this.ui.connectBtn.addEventListener('click', () => {
-            const channel = this.ui.channelInput.value;
-            if (channel) {
-                this.twitch.connect(channel);
-            }
-        });
-        this.ui.startRaceBtn.addEventListener('click', () => this.startRace());
-    }
+    // Controls
+    controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
 
-    onWindowResize() {
-        this.camera.aspect = window.innerWidth / window.innerHeight;
-        this.camera.updateProjectionMatrix();
-        this.renderer.setSize(window.innerWidth, window.innerHeight);
-    }
+    // Physics
+    physicsWorld = new CANNON.World({
+        gravity: new CANNON.Vec3(0, -9.82, 0),
+    });
 
-    handleJoin(user) {
-        if (this.gameState !== 'joining') return;
-        if (this.marbles[user.username]) return; // Already joined
+    // Track
+    createTrack(scene, physicsWorld);
 
-        const username = user['display-name'] || user.username;
-        const color = user.color || `#${Math.floor(Math.random()*16777215).toString(16)}`;
+    // Event Listeners
+    window.addEventListener('resize', onWindowResize);
+    document.getElementById('connect-btn').addEventListener('click', connectToTwitch);
+    document.getElementById('start-race-btn').addEventListener('click', startRaceCountdown);
+    document.getElementById('reset-race-btn').addEventListener('click', resetRace);
 
-        const startPosition = new THREE.Vector3(
-            (Math.random() - 0.5) * 8, 
-            25, 
-            -48 + (Math.random() - 0.5) * 5
-        );
-        const marble = new Marble(username, color, startPosition, this.scene, this.world);
-        this.marbles[user.username] = marble;
-        this.ui.addJoinedPlayer(username);
-        console.log(`${username} joined the race!`);
-    }
-
-    startRace() {
-        if (Object.keys(this.marbles).length === 0) {
-            alert("No players have joined!");
-            return;
-        }
-
-        this.ui.showCountdown(3, () => {
-            this.gameState = 'racing';
-            this.ui.setGameState('racing');
-            Object.values(this.marbles).forEach(marble => {
-                marble.body.wakeUp();
-            });
-        });
-    }
-    
-    updateLeaderboard() {
-        const sortedMarbles = Object.values(this.marbles).sort((a, b) => {
-            return b.body.position.z - a.body.position.z;
-        });
-        this.ui.updateLeaderboard(sortedMarbles.slice(0, 10));
-    }
-
-
-    animate() {
-        requestAnimationFrame(() => this.animate());
-
-        this.world.step(1 / 60);
-
-        for (const username in this.marbles) {
-            this.marbles[username].update();
-        }
-
-        if (this.gameState === 'racing') {
-            this.updateLeaderboard();
-        }
-
-        this.controls.update();
-        this.renderer.render(this.scene, this.camera);
-    }
-
-    start() {
-        this.animate();
-    }
+    // Game Loop
+    animate();
 }
 
-const game = new MarbleRaceGame();
-game.start();
+function connectToTwitch() {
+    const channel = document.getElementById('channel-name').value;
+    if (!channel) {
+        alert('Please enter a Twitch channel name.');
+        return;
+    }
+    setConnectionStatus('Connecting...');
+    setupTwitch(channel, handleUserJoin);
+}
+
+function handleUserJoin(username, color) {
+    if (raceState !== 'waiting') return;
+    if (players.has(username) || players.size >= MAX_PLAYERS) return;
+
+    const marble = createMarble(scene, physicsWorld, username, color);
+    marbles.push(marble);
+    players.set(username, marble);
+
+    updatePlayerList(Array.from(players.keys()));
+}
+
+function startRaceCountdown() {
+    if (raceState !== 'waiting' || players.size < 1) return;
+    
+    raceState = 'countdown';
+    document.getElementById('start-race-btn').disabled = true;
+    
+    const timerEl = document.getElementById('timer');
+    timerEl.style.display = 'block';
+    timerEl.textContent = `Race starts in: ${countdownTimer}s`;
+
+    countdownInterval = setInterval(() => {
+        countdownTimer--;
+        timerEl.textContent = `Race starts in: ${countdownTimer}s`;
+        if (countdownTimer <= 0) {
+            clearInterval(countdownInterval);
+            timerEl.style.display = 'none';
+            startRace();
+        }
+    }, 1000);
+}
+
+function startRace() {
+    raceState = 'racing';
+    document.getElementById('leaderboard').classList.remove('hidden');
+    
+    marbles.forEach(marble => {
+        // Give a slight random push to start
+        const force = new CANNON.Vec3(
+            (Math.random() - 0.5) * 5,
+            0,
+            (Math.random() - 0.5) * 10 - 5
+        );
+        marble.body.applyImpulse(force, marble.body.position);
+    });
+}
+
+function resetRace() {
+    raceState = 'waiting';
+    
+    marbles.forEach(marble => {
+        scene.remove(marble.mesh);
+        physicsWorld.removeBody(marble.body);
+    });
+    marbles.length = 0;
+    players.clear();
+
+    countdownTimer = 15;
+    if(countdownInterval) clearInterval(countdownInterval);
+
+    resetUI();
+    console.log("Race reset.");
+}
 
 
+function onWindowResize() {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+}
+
+function animate() {
+    requestAnimationFrame(animate);
+
+    if (raceState === 'racing' || raceState === 'countdown') {
+        physicsWorld.step(1 / 60);
+
+        marbles.forEach(marble => {
+            marble.mesh.position.copy(marble.body.position);
+            marble.mesh.quaternion.copy(marble.body.quaternion);
+            if (marble.label) {
+                 marble.label.position.copy(marble.mesh.position).add(new THREE.Vector3(0, 1.2, 0));
+                 marble.label.quaternion.copy(camera.quaternion);
+            }
+        });
+
+        if (raceState === 'racing') {
+            updateLeaderboard(marbles);
+        }
+    }
+
+    controls.update();
+    renderer.render(scene, camera);
+}
+
+init();
