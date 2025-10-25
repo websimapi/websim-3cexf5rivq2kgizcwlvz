@@ -96,15 +96,15 @@ function createTurn(scene, world, { width, angle }, startPosition, startRotation
     });
 
     // --- Add Walls ---
-    const wallHeight = 4;
+    const wallHeight = 4; // Doubled from 2 to 4
     const wallThickness = 0.5;
     const numSegments = 10;
     const segmentAngle = turnAngleRad / numSegments;
     const wallYOffset = wallHeight / 2 - 0.1;
 
     const createWall = (radius) => {
-        // Use a slightly larger segment length to ensure connection
-        const segmentLength = 2 * radius * Math.tan(Math.abs(segmentAngle) / 2) * 1.05; 
+        // Use a precise segment length without overlap
+        const segmentLength = 2 * radius * Math.tan(Math.abs(segmentAngle) / 2);
 
         for (let i = 0; i < numSegments; i++) {
             const angleForSegmentCenter = (i + 0.5) * segmentAngle;
@@ -127,7 +127,7 @@ function createTurn(scene, world, { width, angle }, startPosition, startRotation
             wallPos.y += wallYOffset;
 
             createTrackPiece(scene, world, {
-                size: { x: wallThickness, y: wallHeight, z: segmentLength + wallThickness * 0.1 }, // Add thickness to length to close gaps
+                size: { x: wallThickness, y: wallHeight, z: segmentLength }, 
                 position: wallPos,
                 quaternion: segmentRotation,
                 color: 0x444444,
