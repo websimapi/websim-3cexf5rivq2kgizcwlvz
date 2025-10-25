@@ -138,32 +138,3 @@ export function createTrack(scene, world) {
     // Piece 7: Finish line
     createTrackPiece(scene, world, {x: trackWidth, y: 0.5, z: 1}, currentPos, {quaternion: currentRot}, 0xff0000);
 }
-
-
-function createTrackPiece(scene, world, size, position, rotation, color = 0x888888) {
-    const { x, y, z } = size;
-    // 3D Mesh
-    const geo = new THREE.BoxGeometry(x, y, z);
-    const mat = new THREE.MeshStandardMaterial({ color });
-    const mesh = new THREE.Mesh(geo, mat);
-    mesh.position.copy(position);
-    mesh.receiveShadow = true;
-    if (rotation.quaternion) {
-        mesh.quaternion.copy(rotation.quaternion);
-    }
-    scene.add(mesh);
-
-    // Physics Body
-    const shape = new CANNON.Box(new CANNON.Vec3(x / 2, y / 2, z / 2));
-    const body = new CANNON.Body({ mass: 0, shape, material: wallMaterial });
-    body.position.copy(position);
-    if (rotation.quaternion) {
-        body.quaternion.copy(rotation.quaternion);
-    }
-    world.addBody(body);
-}
-
-// Delete old track creation functions
-function createBox() {}
-function createRamp() {}
-function createWall() {}
