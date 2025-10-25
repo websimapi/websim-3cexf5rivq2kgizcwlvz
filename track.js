@@ -96,15 +96,15 @@ function createTurn(scene, world, { width, angle }, startPosition, startRotation
     });
 
     // --- Add Walls ---
-    const wallHeight = 8; // Doubled again from 4 to 8
+    const wallHeight = 2; // Back to normal height, will be doubled in size properly
     const wallThickness = 0.5;
     const numSegments = 10;
     const segmentAngle = turnAngleRad / numSegments;
     const wallYOffset = wallHeight / 2 - 0.1;
 
     const createWall = (radius) => {
-        // Use a precise segment length without overlap
-        const segmentLength = 2 * radius * Math.tan(Math.abs(segmentAngle) / 2);
+        // Use a precise segment length, doubled to match the doubled height
+        const segmentLength = 2 * 2 * radius * Math.tan(Math.abs(segmentAngle) / 2);
 
         for (let i = 0; i < numSegments; i++) {
             const angleForSegmentCenter = (i + 0.5) * segmentAngle;
@@ -115,7 +115,7 @@ function createTurn(scene, world, { width, angle }, startPosition, startRotation
 
             // Center the rails within the green square by using position (center of square) as reference
             // Vector from the center of the square to the wall position
-            const localWallVector = new THREE.Vector3(isRightTurn ? radius : -radius, 0, 0);
+            const localWallVector = new THREE.Vector3(isRightTurn ? -radius : radius, 0, 0);
             
             // Rotate this vector by the segment angle
             const rotatedLocalVector = localWallVector.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), angleForSegmentCenter);
@@ -126,7 +126,7 @@ function createTurn(scene, world, { width, angle }, startPosition, startRotation
             wallPos.y += wallYOffset;
 
             createTrackPiece(scene, world, {
-                size: { x: wallThickness, y: wallHeight, z: segmentLength }, 
+                size: { x: wallThickness, y: wallHeight * 2, z: segmentLength }, 
                 position: wallPos,
                 quaternion: segmentRotation,
                 color: 0x444444,
