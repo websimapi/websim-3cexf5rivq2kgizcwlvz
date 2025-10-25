@@ -77,7 +77,8 @@ function createTurn(scene, world, { width, angle }, startPosition, startRotation
     
     // The pivot point for the turn, relative to the start position.
     // For a right turn, it's to the right; for a left, it's to the left.
-    const pivotOffset = new THREE.Vector3(isRightTurn ? width / 2 : -width / 2, 0, 0);
+    // We shift it forward by half the width to center the arc on the green square.
+    const pivotOffset = new THREE.Vector3(isRightTurn ? width / 2 : -width / 2, 0, width / 2);
     const worldPivotOffset = pivotOffset.clone().applyQuaternion(startRotation);
     const pivotPoint = startPosition.clone().add(worldPivotOffset);
 
@@ -96,18 +97,18 @@ function createTurn(scene, world, { width, angle }, startPosition, startRotation
     });
 
     // --- Add Walls ---
-    const wallHeight = 4; // Doubled from 2 to 4
-    const wallThickness = 0.5;
+    const wallHeight = 8; // Doubled again
+    const wallThickness = 1.0; // Doubled
     const numSegments = 10;
     const segmentAngle = turnAngleRad / numSegments;
     const wallYOffset = wallHeight / 2 - 0.1;
 
     const createWall = (radius) => {
         // Use a precise segment length without overlap
-        const segmentLength = 2 * radius * Math.tan(Math.abs(segmentAngle) / 2);
+        const segmentLength = 2 * radius * Math.tan(Math.abs(segmentAngle) / 2) * 1.05; // Add a small overlap factor
 
         for (let i = 0; i < numSegments; i++) {
-            const angleForSegmentCenter = (i + 0.5) * segmentAngle;
+            const angleForSegmentCenter = (i + 0.5) * segmentAngle - turnAngleRad / 2;
 
             const segmentRotation = startRotation.clone().multiply(
                 new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), angleForSegmentCenter)
