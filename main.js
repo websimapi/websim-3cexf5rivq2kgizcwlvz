@@ -183,23 +183,22 @@ function animate() {
 function onCanvasClick(event) {
     // Calculate mouse position in normalized device coordinates
     // (-1 to +1) for both components
-    const rect = renderer.domElement.getBoundingClientRect();
-    mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-    mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+    mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+    mouse.y = - (event.clientY / window.innerHeight) * 2 + 1;
 
     raycaster.setFromCamera(mouse, camera);
 
     const intersects = raycaster.intersectObjects(scene.children, true); // Check recursively
 
     let foundPiece = false;
-    if (intersects.length > 0) {
-        let object = intersects[0].object;
-        // Traverse up to find parent with userData.info, which is the group
-        while (object.parent && !object.userData.info) {
+    for (let i = 0; i < intersects.length; i++) {
+        let object = intersects[i].object;
+        // Traverse up to find parent with userData
+        while (object && !object.userData.info) {
             object = object.parent;
         }
 
-        if (object.userData.info && object.userData.info.type) {
+        if (object && object.userData.info) {
             const tooltip = document.getElementById('tooltip');
             const tooltipTitle = document.getElementById('tooltip-title');
             const tooltipContent = document.getElementById('tooltip-content');
@@ -212,6 +211,7 @@ function onCanvasClick(event) {
             tooltip.style.top = `${event.clientY + 15}px`;
 
             foundPiece = true;
+            break; 
         }
     }
     

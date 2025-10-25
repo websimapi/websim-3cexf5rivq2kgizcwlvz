@@ -34,7 +34,7 @@ export function createMarble(scene, world, username, color) {
     
     const startX = (Math.random() - 0.5) * 8;
     const startZ = -38 + (Math.random() - 0.5) * 4;
-    body.position.set(startX, 5.5, startZ);
+    body.position.set(startX, 15.5, startZ);
     world.addBody(body);
 
     const marble = { mesh, body, username };

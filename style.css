@@ -105,25 +105,17 @@ button:disabled {
     display: none !important;
 }
 
-#tooltip-container {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100vw;
-    height: 100vh;
-    pointer-events: none;
-    z-index: 100;
-}
-
 #tooltip {
-    position: absolute;
+    position: fixed;
     display: none;
     background: rgba(0, 0, 0, 0.85);
     color: white;
     padding: 10px 15px;
     border-radius: 8px;
+    pointer-events: none; /* So it doesn't interfere with other mouse events */
     font-size: 14px;
     white-space: pre;
+    z-index: 100;
     border: 1px solid #fca311;
     box-shadow: 0 0 10px rgba(252, 163, 17, 0.5);
     font-family: 'Courier New', Courier, monospace;
