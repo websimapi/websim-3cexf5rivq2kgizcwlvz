@@ -76,14 +76,15 @@ function createTurn(scene, world, { width, angle }, startPosition, startRotation
     const isRightTurn = angle > 0;
     
     // The center of rotation for the turn, relative to the start position.
+    // The pivot point is 'inside' the turn.
     const pivotPointOffset = new THREE.Vector3(isRightTurn ? width / 2 : -width / 2, 0, 0);
     const worldPivotPointOffset = pivotPointOffset.clone().applyQuaternion(startRotation);
     const pivotPoint = startPosition.clone().add(worldPivotPointOffset);
 
-    // The center of the square track piece is offset from the start position.
-    const centerOffset = new THREE.Vector3(isRightTurn ? width / 2 : -width / 2, 0, width / 2);
-    const worldCenterOffset = centerOffset.clone().applyQuaternion(startRotation);
-    const position = startPosition.clone().add(worldCenterOffset);
+    // The center of the square track piece is offset from the pivot point, not the start.
+    const centerOffsetFromPivot = new THREE.Vector3(isRightTurn ? -width / 2 : width / 2, 0, width / 2);
+    const worldCenterOffset = centerOffsetFromPivot.clone().applyQuaternion(startRotation);
+    const position = pivotPoint.clone().add(worldCenterOffset);
 
     // Create the main floor of the turn
     const turnGroup = createTrackPiece(scene, world, {
@@ -115,11 +116,12 @@ function createTurn(scene, world, { width, angle }, startPosition, startRotation
     // Calculate the end rotation by applying the turn angle
     const endRotation = startRotation.clone().multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), turnAngleRad));
     
-    // The end position is calculated from the start position.
-    // Vector from start to pivot, rotate it, then vector from new pivot to end.
-    const endPositionOffset = new THREE.Vector3(isRightTurn ? width : -width, 0, width);
-    const worldEndPositionOffset = endPositionOffset.clone().applyQuaternion(startRotation);
-    const endPosition = startPosition.clone().add(worldEndPositionOffset);
+    // The end position is calculated from the pivot point.
+    // The end point relative to the pivot is (pivot_x, pivot_y, pivot_z + width/2) rotated by the turn angle.
+    const endOffsetFromPivot = new THREE.Vector3(isRightTurn ? -width/2 : width/2, 0, width/2);
+    const rotatedEndOffset = endOffsetFromPivot.clone().applyAxisAngle(new THREE.Vector3(0,1,0), turnAngleRad);
+    const worldRotatedEndOffset = rotatedEndOffset.clone().applyQuaternion(startRotation);
+    const endPosition = pivotPoint.clone().add(worldRotatedEndOffset);
     
     return { endPosition, endRotation };
 }
