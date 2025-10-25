@@ -84,9 +84,6 @@ function createTurn(scene, world, { width, angle }, startPosition, startRotation
     const centerOffset = new THREE.Vector3(0, 0, width / 2);
     const worldCenterOffset = centerOffset.clone().applyQuaternion(startRotation);
     const position = startPosition.clone().add(worldCenterOffset);
-
-    // The group for the turn should be rotated around the Y axis.
-    const pieceRotation = startRotation.clone().multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), turnAngleRad / 2));
     
     // Create the main floor of the turn
     createTrackPiece(scene, world, {
@@ -102,29 +99,31 @@ function createTurn(scene, world, { width, angle }, startPosition, startRotation
     const wallThickness = 0.5;
     const numSegments = 10; // More segments for a smoother curve
     const segmentAngle = turnAngleRad / numSegments;
-
     const wallYOffset = wallHeight / 2 - 0.1;
 
     // Outer Wall
-    const outerRadius = width;
+    const outerRadius = width / 2 + wallThickness / 2;
     for (let i = 0; i < numSegments; i++) {
-        const angle = i * segmentAngle;
+        const currentAngle = i * segmentAngle;
+        const wallAngle = currentAngle + segmentAngle / 2;
+        
         const segmentRotation = startRotation.clone().multiply(
-            new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), angle + segmentAngle / 2)
+            new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), wallAngle * (isRightTurn ? 1 : -1))
         );
 
-        const segmentLength = outerRadius * 2 * Math.sin(segmentAngle / 2);
+        const segmentLength = 2 * (width / 2) * Math.tan(Math.abs(segmentAngle) / 2);
 
         const localPos = new THREE.Vector3(
-            isRightTurn ? outerRadius * Math.sin(angle + segmentAngle / 2) : -outerRadius * Math.sin(angle + segmentAngle / 2),
+            (isRightTurn ? 1 : -1) * (width / 2),
             wallYOffset,
-            outerRadius * (1 - Math.cos(angle + segmentAngle / 2))
-        );
-
-        const wallPos = pivotPoint.clone().add(localPos.applyQuaternion(startRotation));
+            0
+        ).applyAxisAngle(new THREE.Vector3(0, 1, 0), wallAngle);
+        
+        const worldPosOffset = localPos.clone().applyQuaternion(startRotation);
+        const wallPos = startPosition.clone().add(worldPosOffset);
         
         createTrackPiece(scene, world, {
-            size: { x: segmentLength, y: wallHeight, z: wallThickness },
+            size: { x: wallThickness, y: wallHeight, z: segmentLength + wallThickness }, // Add thickness to length to close gaps
             position: wallPos,
             quaternion: segmentRotation,
             color: 0x444444,
@@ -132,9 +131,36 @@ function createTurn(scene, world, { width, angle }, startPosition, startRotation
         });
     }
 
-    // Inner Wall (only if there's a radius, which there isn't with this pivot)
-    // The current pivot point is on the inner edge, so the inner radius is 0. No inner wall needed.
+    // Inner Wall
+    const innerRadius = width / 2 - wallThickness / 2;
+     for (let i = 0; i < numSegments; i++) {
+        const currentAngle = i * segmentAngle;
+        const wallAngle = currentAngle + segmentAngle / 2;
+        
+        const segmentRotation = startRotation.clone().multiply(
+            new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), wallAngle * (isRightTurn ? 1 : -1))
+        );
 
+        // Segment length should be calculated based on the radius
+        const segmentLength = 2 * (width / 2) * Math.tan(Math.abs(segmentAngle) / 2);
+       
+        const localPos = new THREE.Vector3(
+            (isRightTurn ? -1 : 1) * (width / 2),
+            wallYOffset,
+            0
+        ).applyAxisAngle(new THREE.Vector3(0,1,0), wallAngle);
+       
+        const worldPosOffset = localPos.clone().applyQuaternion(startRotation);
+        const wallPos = startPosition.clone().add(worldPosOffset);
+
+        createTrackPiece(scene, world, {
+            size: { x: wallThickness, y: wallHeight, z: segmentLength + wallThickness }, // Add thickness to length to close gaps
+            position: wallPos,
+            quaternion: segmentRotation,
+            color: 0x444444,
+            info: { type: 'wall' }
+        });
+    }
 
     // Calculate the end rotation by applying the full turn angle
     const endRotation = startRotation.clone().multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), turnAngleRad));
