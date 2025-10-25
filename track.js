@@ -97,40 +97,53 @@ function createTurn(scene, world, { width, angle }, startPosition, startRotation
     // --- Add Walls ---
     const wallHeight = 2;
     const wallThickness = 0.5;
-    const numSegments = 10; // More segments for a smoother curve
-    const segmentAngle = turnAngleRad / numSegments;
     const wallYOffset = wallHeight / 2 - 0.1;
 
-    const createWall = (radius) => {
-        const segmentLength = 2 * Math.abs(radius) * Math.tan(Math.abs(segmentAngle) / 2);
-        for (let i = 0; i < numSegments; i++) {
-            const angleForSegmentCenter = (i + 0.5) * segmentAngle;
+    // A simpler approach for 90-degree turns: two straight walls.
+    const createCornerWalls = (outer) => {
+        const side = isRightTurn ? 1 : -1;
+        const radius = (width / 2) * side;
+        const wallOffset = (wallThickness / 2) * (outer ? 1 : -1) * side;
+        
+        // Wall 1: Parallel to entry direction
+        const wall1Length = width + (outer ? wallThickness : -wallThickness);
+        const wall1CenterOffset = new THREE.Vector3(
+            radius + wallOffset, 
+            wallYOffset, 
+            width / 2
+        );
+        const wall1Pos = startPosition.clone().add(wall1CenterOffset.applyQuaternion(startRotation));
+        createTrackPiece(scene, world, {
+            size: { x: wallThickness, y: wallHeight, z: wall1Length },
+            position: wall1Pos,
+            quaternion: startRotation,
+            color: 0x444444, info: { type: 'wall' }
+        });
 
-            const segmentRotation = startRotation.clone().multiply(
-                new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), angleForSegmentCenter)
-            );
-
-            // Vector from pivot to segment center, corrected direction
-            const wallVec = new THREE.Vector3(-radius, wallYOffset, 0);
-            wallVec.applyAxisAngle(new THREE.Vector3(0, 1, 0), angleForSegmentCenter);
-            
-            const wallPos = pivotPoint.clone().add(wallVec);
-
-            createTrackPiece(scene, world, {
-                size: { x: segmentLength + wallThickness * 0.1, y: wallHeight, z: wallThickness }, // Swap x and z for correct orientation
-                position: wallPos,
-                quaternion: segmentRotation,
-                color: 0x444444,
-                info: { type: 'wall' }
-            });
-        }
+        // Wall 2: Perpendicular to entry direction
+        const wall2Length = width + (outer ? wallThickness : -wallThickness);
+        const wall2CenterOffset = new THREE.Vector3(
+            (width / 2) * side,
+            wallYOffset,
+            radius + wallOffset
+        );
+       
+        const wall2Rotation = startRotation.clone().multiply(
+            new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), turnAngleRad)
+        );
+        const wall2Pos = startPosition.clone().add(wall2CenterOffset.applyQuaternion(startRotation));
+         createTrackPiece(scene, world, {
+            size: { x: wall2Length, y: wallHeight, z: wallThickness },
+            position: wall2Pos,
+            quaternion: startRotation, // Keep original rotation, position determines placement
+            color: 0x444444, info: { type: 'wall' }
+        });
     };
-    
-    // Outer Wall
-    createWall(isRightTurn ? width/2 + wallThickness/2 : -(width/2 + wallThickness/2));
 
-    // Inner Wall
-    createWall(isRightTurn ? width/2 - wallThickness/2 : -(width/2 - wallThickness/2));
+    // Outer Walls
+    createCornerWalls(true);
+    // Inner Walls
+    createCornerWalls(false);
 
     // Calculate the end rotation by applying the full turn angle
     const endRotation = startRotation.clone().multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), turnAngleRad));
