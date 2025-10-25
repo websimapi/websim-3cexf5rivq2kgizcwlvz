@@ -101,66 +101,36 @@ function createTurn(scene, world, { width, angle }, startPosition, startRotation
     const segmentAngle = turnAngleRad / numSegments;
     const wallYOffset = wallHeight / 2 - 0.1;
 
+    const createWall = (radius, isOuter) => {
+        const segmentLength = 2 * radius * Math.tan(Math.abs(segmentAngle) / 2);
+        for (let i = 0; i < numSegments; i++) {
+            const angleForSegmentCenter = (i + 0.5) * segmentAngle;
+
+            const segmentRotation = startRotation.clone().multiply(
+                new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), angleForSegmentCenter)
+            );
+
+            // Vector from pivot to segment center
+            const wallVec = new THREE.Vector3(isRightTurn ? -radius : radius, wallYOffset, 0);
+            wallVec.applyAxisAngle(new THREE.Vector3(0, 1, 0), angleForSegmentCenter);
+            
+            const wallPos = pivotPoint.clone().add(wallVec);
+
+            createTrackPiece(scene, world, {
+                size: { x: wallThickness, y: wallHeight, z: segmentLength + wallThickness * 0.1 }, // Add thickness to length to close gaps
+                position: wallPos,
+                quaternion: segmentRotation,
+                color: 0x444444,
+                info: { type: 'wall' }
+            });
+        }
+    };
+    
     // Outer Wall
-    const outerRadius = width / 2 + wallThickness / 2;
-    for (let i = 0; i < numSegments; i++) {
-        const currentAngle = i * segmentAngle;
-        const wallAngle = currentAngle + segmentAngle / 2;
-        
-        const segmentRotation = startRotation.clone().multiply(
-            new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), wallAngle * (isRightTurn ? 1 : -1))
-        );
-
-        const segmentLength = 2 * (width / 2) * Math.tan(Math.abs(segmentAngle) / 2);
-
-        const localPos = new THREE.Vector3(
-            (isRightTurn ? 1 : -1) * (width / 2),
-            wallYOffset,
-            0
-        ).applyAxisAngle(new THREE.Vector3(0, 1, 0), wallAngle);
-        
-        const worldPosOffset = localPos.clone().applyQuaternion(startRotation);
-        const wallPos = startPosition.clone().add(worldPosOffset);
-        
-        createTrackPiece(scene, world, {
-            size: { x: wallThickness, y: wallHeight, z: segmentLength + wallThickness }, // Add thickness to length to close gaps
-            position: wallPos,
-            quaternion: segmentRotation,
-            color: 0x444444,
-            info: { type: 'wall' }
-        });
-    }
+    createWall(width/2 + wallThickness/2, true);
 
     // Inner Wall
-    const innerRadius = width / 2 - wallThickness / 2;
-     for (let i = 0; i < numSegments; i++) {
-        const currentAngle = i * segmentAngle;
-        const wallAngle = currentAngle + segmentAngle / 2;
-        
-        const segmentRotation = startRotation.clone().multiply(
-            new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), wallAngle * (isRightTurn ? 1 : -1))
-        );
-
-        // Segment length should be calculated based on the radius
-        const segmentLength = 2 * (width / 2) * Math.tan(Math.abs(segmentAngle) / 2);
-       
-        const localPos = new THREE.Vector3(
-            (isRightTurn ? -1 : 1) * (width / 2),
-            wallYOffset,
-            0
-        ).applyAxisAngle(new THREE.Vector3(0,1,0), wallAngle);
-       
-        const worldPosOffset = localPos.clone().applyQuaternion(startRotation);
-        const wallPos = startPosition.clone().add(worldPosOffset);
-
-        createTrackPiece(scene, world, {
-            size: { x: wallThickness, y: wallHeight, z: segmentLength + wallThickness }, // Add thickness to length to close gaps
-            position: wallPos,
-            quaternion: segmentRotation,
-            color: 0x444444,
-            info: { type: 'wall' }
-        });
-    }
+    createWall(width/2 - wallThickness/2, false);
 
     // Calculate the end rotation by applying the full turn angle
     const endRotation = startRotation.clone().multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), turnAngleRad));
