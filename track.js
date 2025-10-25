@@ -75,10 +75,11 @@ function createTurn(scene, world, { width, angle }, startPosition, startRotation
     const turnAngleRad = angle * (Math.PI / 180);
     const isRightTurn = angle > 0;
     
-    // The pivot point for the turn, located to the side of the entry point.
-    const pivotPointOffset = new THREE.Vector3(isRightTurn ? width / 2 : -width / 2, 0, 0);
-    const worldPivotPointOffset = pivotPointOffset.clone().applyQuaternion(startRotation);
-    const pivotPoint = startPosition.clone().add(worldPivotPointOffset);
+    // The pivot point for the turn, relative to the start position.
+    // For a right turn, it's to the right; for a left, it's to the left.
+    const pivotOffset = new THREE.Vector3(isRightTurn ? width / 2 : -width / 2, 0, 0);
+    const worldPivotOffset = pivotOffset.clone().applyQuaternion(startRotation);
+    const pivotPoint = startPosition.clone().add(worldPivotOffset);
 
     // The center of the square track piece is offset from the start, not the pivot.
     const centerOffset = new THREE.Vector3(0, 0, width / 2);
@@ -95,15 +96,16 @@ function createTurn(scene, world, { width, angle }, startPosition, startRotation
     });
 
     // --- Add Walls ---
-    const wallHeight = 4; // Doubled from 2
+    const wallHeight = 4;
     const wallThickness = 0.5;
-    const numSegments = 10; // More segments for a smoother curve
+    const numSegments = 10;
     const segmentAngle = turnAngleRad / numSegments;
     const wallYOffset = wallHeight / 2 - 0.1;
 
-    const createWall = (radius, isOuter) => {
+    const createWall = (radius) => {
         // Use a slightly larger segment length to ensure connection
         const segmentLength = 2 * radius * Math.tan(Math.abs(segmentAngle) / 2) * 1.05; 
+
         for (let i = 0; i < numSegments; i++) {
             const angleForSegmentCenter = (i + 0.5) * segmentAngle;
 
@@ -111,11 +113,18 @@ function createTurn(scene, world, { width, angle }, startPosition, startRotation
                 new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), angleForSegmentCenter)
             );
 
-            // Vector from pivot to segment center
-            const wallVec = new THREE.Vector3(isRightTurn ? -radius : radius, wallYOffset, 0);
-            wallVec.applyAxisAngle(new THREE.Vector3(0, 1, 0), angleForSegmentCenter);
+            // Vector from pivot to the start of the turn's curve, relative to the start orientation
+            const initialWallVector = new THREE.Vector3(isRightTurn ? -radius : radius, 0, 0);
             
-            const wallPos = pivotPoint.clone().add(wallVec);
+            // Rotate this vector around the pivot's effective "up" axis (world Y)
+            const rotatedWallVector = initialWallVector.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), angleForSegmentCenter);
+
+            // Now apply the initial track rotation to get the vector in world space
+            const worldRotatedWallVector = rotatedWallVector.applyQuaternion(startRotation);
+            
+            // Final position is pivot + rotated vector + Y offset
+            const wallPos = pivotPoint.clone().add(worldRotatedWallVector);
+            wallPos.y += wallYOffset;
 
             createTrackPiece(scene, world, {
                 size: { x: wallThickness, y: wallHeight, z: segmentLength + wallThickness * 0.1 }, // Add thickness to length to close gaps
@@ -128,10 +137,10 @@ function createTurn(scene, world, { width, angle }, startPosition, startRotation
     };
     
     // Outer Wall
-    createWall(width/2 + wallThickness/2, true);
+    createWall(width/2 + wallThickness/2);
 
     // Inner Wall
-    createWall(width/2 - wallThickness/2, false);
+    createWall(width/2 - wallThickness/2);
 
     // Calculate the end rotation by applying the full turn angle
     const endRotation = startRotation.clone().multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), turnAngleRad));
