@@ -2,82 +2,149 @@ import * as THREE from 'three';
 import * as CANNON from 'cannon-es';
 
 // Re-export wall material for marbles to use
-export const wallMaterial = new CANNON.Material('wallMaterial');
+const wallMaterial = new CANNON.Material('wallMaterial');
+export function getWallMaterial() {
+    return wallMaterial;
+}
 
-function createTrackPiece(scene, world, size, position, rotation, color = 0x888888) {
+function createTrackPiece(scene, world, { size, position, quaternion, color = 0x888888, info = {} }) {
     const { x, y, z } = size;
+    const group = new THREE.Group();
+    group.position.copy(position);
+    group.quaternion.copy(quaternion);
+    group.userData.info = info;
+
+    // Create physics body first to attach to group
+    const shape = new CANNON.Box(new CANNON.Vec3(x / 2, y / 2, z / 2));
+    const body = new CANNON.Body({ mass: 0, material: wallMaterial });
+    body.addShape(shape); // Add shape to body
+    body.position.copy(position);
+    body.quaternion.copy(quaternion);
+    world.addBody(body);
+    group.userData.body = body; // Optional: link body to group
+
+    scene.add(group);
+
     // 3D Mesh
     const geo = new THREE.BoxGeometry(x, y, z);
     const mat = new THREE.MeshStandardMaterial({ color });
     const mesh = new THREE.Mesh(geo, mat);
-    mesh.position.copy(position);
     mesh.receiveShadow = true;
-    if (rotation.quaternion) {
-        mesh.quaternion.copy(rotation.quaternion);
-    }
-    scene.add(mesh);
-
-    // Physics Body
-    const shape = new CANNON.Box(new CANNON.Vec3(x / 2, y / 2, z / 2));
-    const body = new CANNON.Body({ mass: 0, shape, material: wallMaterial });
-    body.position.copy(position);
-    if (rotation.quaternion) {
-        body.quaternion.copy(rotation.quaternion);
-    }
-    world.addBody(body);
+    group.add(mesh);
+    
+    return group;
 }
 
 function createStraight(scene, world, { width, length, slope }, startPosition, startRotation) {
-    const angle = -slope * (Math.PI / 180); // Convert slope from degrees to radians
-    const yOffset = Math.sin(angle) * (length / 2);
-    const zOffset = Math.cos(angle) * (length / 2);
-
-    const position = new THREE.Vector3(0, yOffset, zOffset).applyQuaternion(startRotation).add(startPosition);
-    const rotation = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), angle).multiply(startRotation);
-
-    createTrackPiece(scene, world, { x: width, y: 0.2, z: length }, position, { quaternion: rotation }, 0x5555ff);
+    const slopeAngle = -slope * (Math.PI / 180);
+    const slopeQuat = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), slopeAngle);
     
+    const pieceRotation = startRotation.clone().multiply(slopeQuat);
+    
+    const centerOffset = new THREE.Vector3(0, -length * Math.sin(slopeAngle) / 2, length * Math.cos(slopeAngle) / 2);
+    const worldCenterOffset = centerOffset.clone().applyQuaternion(startRotation);
+    const position = startPosition.clone().add(worldCenterOffset);
+
+    const floorGroup = new THREE.Group();
+    floorGroup.userData.info = { type: 'straight', length, slope };
+    scene.add(floorGroup);
+
+    // Floor Mesh
+    const floorGeo = new THREE.BoxGeometry(width, 0.2, length);
+    const floorMat = new THREE.MeshStandardMaterial({ color: 0x5555ff });
+    const floorMesh = new THREE.Mesh(floorGeo, floorMat);
+    floorMesh.receiveShadow = true;
+    floorGroup.add(floorMesh);
+
+    // Floor Physics
+    const floorShape = new CANNON.Box(new CANNON.Vec3(width / 2, 0.1, length / 2));
+    const floorBody = new CANNON.Body({ mass: 0, shape: floorShape, material: wallMaterial });
+    floorBody.position.copy(position);
+    floorBody.quaternion.copy(pieceRotation);
+    world.addBody(floorBody);
+    
+    floorGroup.position.copy(floorBody.position);
+    floorGroup.quaternion.copy(floorBody.quaternion);
+
     // Walls
     const wallHeight = 2;
     const wallThickness = 0.5;
-    const wallY = wallHeight / 2 - 0.1;
+    const wallYOffset = wallHeight / 2 - 0.1;
 
     // Left wall
-    const leftWallPos = new THREE.Vector3(-width/2 - wallThickness/2, wallY, 0).applyQuaternion(rotation).add(position);
-    createTrackPiece(scene, world, {x: wallThickness, y: wallHeight, z: length}, leftWallPos, {quaternion: rotation}, 0x444444);
+    const leftWallLocalPos = new THREE.Vector3(-width/2 - wallThickness/2, wallYOffset, 0);
+    createTrackPiece(scene, world, {size: {x: wallThickness, y: wallHeight, z: length}, position: floorBody.pointToWorldFrame(new CANNON.Vec3().copy(leftWallLocalPos)), quaternion: pieceRotation, color: 0x444444, info: { type: 'wall' }});
 
     // Right wall
-    const rightWallPos = new THREE.Vector3(width/2 + wallThickness/2, wallY, 0).applyQuaternion(rotation).add(position);
-    createTrackPiece(scene, world, {x: wallThickness, y: wallHeight, z: length}, rightWallPos, {quaternion: rotation}, 0x444444);
+    const rightWallLocalPos = new THREE.Vector3(width/2 + wallThickness/2, wallYOffset, 0);
+    createTrackPiece(scene, world, {size: {x: wallThickness, y: wallHeight, z: length}, position: floorBody.pointToWorldFrame(new CANNON.Vec3().copy(rightWallLocalPos)), quaternion: pieceRotation, color: 0x444444, info: { type: 'wall' }});
 
-    const endPosition = new THREE.Vector3(0, yOffset * 2, zOffset * 2).applyQuaternion(startRotation).add(startPosition);
+    const endOffset = new THREE.Vector3(0, -length * Math.sin(slopeAngle), length * Math.cos(slopeAngle));
+    const endPosition = startPosition.clone().add(endOffset.applyQuaternion(startRotation));
 
     return { endPosition, endRotation: startRotation };
 }
 
 function createTurn(scene, world, { width, angle }, startPosition, startRotation) {
     const turnAngleRad = angle * (Math.PI / 180);
-    const pivotPoint = new THREE.Vector3(-width/2, 0, width/2).applyQuaternion(startRotation).add(startPosition);
-
-    const position = new THREE.Vector3(width/2, 0, -width/2).applyQuaternion(startRotation).add(pivotPoint);
-
-    createTrackPiece(scene, world, { x: width, y: 0.2, z: width }, position, { quaternion: startRotation }, 0x55ff55);
-
-    const wallHeight = 2;
-    const wallThickness = 0.5;
-    const wallY = wallHeight / 2 - 0.1;
-
-    // Outer wall
-    const outerWallPos = new THREE.Vector3(width / 2 + wallThickness / 2, wallY, 0).applyQuaternion(startRotation).add(position);
-    createTrackPiece(scene, world, { x: wallThickness, y: wallHeight, z: width }, outerWallPos, { quaternion: startRotation }, 0x444444);
+    const isRightTurn = angle > 0;
+    const segments = 12;
+    const radius = width; // outer radius
+    const innerRadius = width - width; // assuming track width is `width`
     
-    // Back wall
-    const backWallPos = new THREE.Vector3(0, wallY, -width/2 - wallThickness/2).applyQuaternion(startRotation).add(position);
-    createTrackPiece(scene, world, { x: width + wallThickness*2, y: wallHeight, z: wallThickness }, backWallPos, { quaternion: startRotation }, 0x444444);
+    const turnGroup = new THREE.Group();
+    turnGroup.userData.info = { type: 'turn', angle };
+    scene.add(turnGroup);
 
-    const endRotation = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), turnAngleRad).multiply(startRotation);
-    const endPosition = new THREE.Vector3(width, 0, 0).applyQuaternion(startRotation).add(startPosition);
+    const segmentAngle = turnAngleRad / segments;
+    const segmentLength = (radius - width / 2) * Math.abs(segmentAngle);
+
+    let currentAngle = 0;
+    let lastSegmentPos = startPosition.clone();
+    let lastSegmentRot = startRotation.clone();
+
+    for (let i = 0; i < segments; i++) {
+        const rotQuat = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), segmentAngle / 2);
+        const nextSegmentRot = lastSegmentRot.clone().multiply(rotQuat);
+        
+        const offset = new THREE.Vector3(0, 0, segmentLength).applyQuaternion(nextSegmentRot);
+        const segmentPos = lastSegmentPos.clone().add(offset);
+        
+        // Floor
+        const floorGeo = new THREE.BoxGeometry(width, 0.2, segmentLength);
+        const floorMat = new THREE.MeshStandardMaterial({ color: 0x55ff55 });
+        const floorMesh = new THREE.Mesh(floorGeo, floorMat);
+        floorMesh.position.copy(segmentPos);
+        floorMesh.quaternion.copy(nextSegmentRot);
+        turnGroup.add(floorMesh);
+
+        const floorShape = new CANNON.Box(new CANNON.Vec3(width / 2, 0.1, segmentLength / 2));
+        const floorBody = new CANNON.Body({ mass: 0, shape: floorShape, material: wallMaterial });
+        floorBody.position.copy(segmentPos);
+        floorBody.quaternion.copy(nextSegmentRot);
+        world.addBody(floorBody);
+
+        // Walls
+        const wallHeight = 2;
+        const wallThickness = 0.5;
+
+        // Outer wall
+        const outerWallOffset = new THREE.Vector3(isRightTurn ? width/2 + wallThickness/2 : -width/2 - wallThickness/2, wallHeight/2 - 0.1, 0);
+        createTrackPiece(scene, world, {size: {x: wallThickness, y: wallHeight, z: segmentLength}, position: floorBody.pointToWorldFrame(new CANNON.Vec3().copy(outerWallOffset)), quaternion: nextSegmentRot, color: 0x444444, info: { type: 'wall' }});
+
+        // Inner wall
+        const innerWallOffset = new THREE.Vector3(isRightTurn ? -width/2 - wallThickness/2 : width/2 + wallThickness/2, wallHeight/2 - 0.1, 0);
+        createTrackPiece(scene, world, {size: {x: wallThickness, y: wallHeight, z: segmentLength}, position: floorBody.pointToWorldFrame(new CANNON.Vec3().copy(innerWallOffset)), quaternion: nextSegmentRot, color: 0x444444, info: { type: 'wall' }});
+
+
+        lastSegmentPos = segmentPos.clone().add(new THREE.Vector3(0,0,segmentLength/2).applyQuaternion(nextSegmentRot));
+        lastSegmentRot.multiply(rotQuat);
+    }
     
+    const endRotation = startRotation.clone().multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), turnAngleRad));
+    const finalOffset = new THREE.Vector3(0,0,segmentLength/2).applyQuaternion(lastSegmentRot);
+    const endPosition = lastSegmentPos.clone();
+
     return { endPosition, endRotation };
 }
 
@@ -98,12 +165,18 @@ export function createTrack(scene, world) {
     groundBody.quaternion.setFromAxisAngle(new CANNON.Vec3(1, 0, 0), -Math.PI / 2);
     world.addBody(groundBody);
 
-    let currentPos = new THREE.Vector3(0, 15, -40);
+    let currentPos = new THREE.Vector3(0, 5, -40);
     let currentRot = new THREE.Quaternion();
     const trackWidth = 10;
 
     // Back Wall
-    createTrackPiece(scene, world, {x: trackWidth, y: 3, z: 0.5}, new THREE.Vector3(currentPos.x, currentPos.y + 1.5, currentPos.z - 4.25), {quaternion: currentRot}, 0x333333);
+    createTrackPiece(scene, world, {
+        size: {x: trackWidth + 1, y: 4, z: 0.5},
+        position: new THREE.Vector3(currentPos.x, currentPos.y + 2, currentPos.z - 0.25),
+        quaternion: currentRot,
+        color: 0x333333,
+        info: { type: 'back-wall' }
+    });
 
     // Piece 1: Starting Platform (short straight)
     let piece = createStraight(scene, world, { width: trackWidth, length: 8, slope: 0 }, currentPos, currentRot);
@@ -111,12 +184,12 @@ export function createTrack(scene, world) {
     currentRot = piece.endRotation;
 
     // Piece 2: Downward Ramp
-    piece = createStraight(scene, world, { width: trackWidth, length: 40, slope: 15 }, currentPos, currentRot);
+    piece = createStraight(scene, world, { width: trackWidth, length: 40, slope: 20 }, currentPos, currentRot);
     currentPos = piece.endPosition;
     currentRot = piece.endRotation;
 
-    // Piece 3: Turn Left
-    piece = createTurn(scene, world, { width: trackWidth, angle: -90 }, currentPos, currentRot);
+    // Piece 3: Turn Right
+    piece = createTurn(scene, world, { width: trackWidth, angle: 90 }, currentPos, currentRot);
     currentPos = piece.endPosition;
     currentRot = piece.endRotation;
 
@@ -125,16 +198,22 @@ export function createTrack(scene, world) {
     currentPos = piece.endPosition;
     currentRot = piece.endRotation;
 
-    // Piece 5: Turn Right
-    piece = createTurn(scene, world, { width: trackWidth, angle: 90 }, currentPos, currentRot);
+    // Piece 5: Turn Left
+    piece = createTurn(scene, world, { width: trackWidth, angle: -90 }, currentPos, currentRot);
     currentPos = piece.endPosition;
     currentRot = piece.endRotation;
     
     // Piece 6: Long downward ramp
-    piece = createStraight(scene, world, { width: trackWidth, length: 50, slope: 10 }, currentPos, currentRot);
+    piece = createStraight(scene, world, { width: trackWidth, length: 50, slope: 15 }, currentPos, currentRot);
     currentPos = piece.endPosition;
     currentRot = piece.endRotation;
     
     // Piece 7: Finish line
-    createTrackPiece(scene, world, {x: trackWidth, y: 0.5, z: 1}, currentPos, {quaternion: currentRot}, 0xff0000);
+    createTrackPiece(scene, world, {
+        size: {x: trackWidth, y: 0.5, z: 1},
+        position: currentPos.clone().add(new THREE.Vector3(0,0,0.5).applyQuaternion(currentRot)),
+        quaternion: currentRot,
+        color: 0xff0000,
+        info: { type: 'finish-line' }
+    });
 }

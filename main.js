@@ -2,13 +2,14 @@ import * as THREE from 'three';
 import * as CANNON from 'cannon-es';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { setupTwitch } from './twitch.js';
-import { createMarble } from './marble.js';
+import { createMarble, getMarbleContactMaterial } from './marble.js';
 import { createTrack } from './track.js';
 import { updatePlayerList, updateLeaderboard, setConnectionStatus, showRaceControls, resetUI } from './ui.js';
 
 let scene, camera, renderer, controls;
 let physicsWorld;
 let backgroundTexture;
+let raycaster, mouse;
 
 const marbles = [];
 const players = new Map(); // username -> marble object
@@ -36,6 +37,10 @@ function init() {
     renderer.setPixelRatio(window.devicePixelRatio);
     renderer.shadowMap.enabled = true;
 
+    // Raycasting for piece selection
+    raycaster = new THREE.Raycaster();
+    mouse = new THREE.Vector2();
+
     // Lights
     const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
     scene.add(ambientLight);
@@ -53,6 +58,7 @@ function init() {
     physicsWorld = new CANNON.World({
         gravity: new CANNON.Vec3(0, -9.82, 0),
     });
+    physicsWorld.addContactMaterial(getMarbleContactMaterial());
 
     // Track
     createTrack(scene, physicsWorld);
@@ -62,6 +68,7 @@ function init() {
     document.getElementById('connect-btn').addEventListener('click', connectToTwitch);
     document.getElementById('start-race-btn').addEventListener('click', startRaceCountdown);
     document.getElementById('reset-race-btn').addEventListener('click', resetRace);
+    window.addEventListener('click', onCanvasClick);
 
     // Game Loop
     animate();
@@ -171,6 +178,46 @@ function animate() {
 
     controls.update();
     renderer.render(scene, camera);
+}
+
+function onCanvasClick(event) {
+    // Calculate mouse position in normalized device coordinates
+    // (-1 to +1) for both components
+    const rect = renderer.domElement.getBoundingClientRect();
+    mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+    mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+
+    raycaster.setFromCamera(mouse, camera);
+
+    const intersects = raycaster.intersectObjects(scene.children, true); // Check recursively
+
+    let foundPiece = false;
+    if (intersects.length > 0) {
+        let object = intersects[0].object;
+        // Traverse up to find parent with userData.info, which is the group
+        while (object.parent && !object.userData.info) {
+            object = object.parent;
+        }
+
+        if (object.userData.info && object.userData.info.type) {
+            const tooltip = document.getElementById('tooltip');
+            const tooltipTitle = document.getElementById('tooltip-title');
+            const tooltipContent = document.getElementById('tooltip-content');
+
+            tooltipTitle.textContent = `Track Piece: ${object.userData.info.type}`;
+            tooltipContent.textContent = JSON.stringify(object.userData.info, null, 2);
+
+            tooltip.style.display = 'block';
+            tooltip.style.left = `${event.clientX + 15}px`;
+            tooltip.style.top = `${event.clientY + 15}px`;
+
+            foundPiece = true;
+        }
+    }
+    
+    if (!foundPiece) {
+        document.getElementById('tooltip').style.display = 'none';
+    }
 }
 
 init();

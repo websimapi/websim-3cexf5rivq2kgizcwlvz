@@ -2,19 +2,16 @@ import * as THREE from 'three';
 import * as CANNON from 'cannon-es';
 import { FontLoader } from 'three/addons/loaders/FontLoader.js';
 import { TextGeometry } from 'three/addons/geometries/TextGeometry.js';
-import { wallMaterial } from './track.js';
+import { getWallMaterial } from './track.js';
 
 const marbleMaterial = new CANNON.Material('marbleMaterial');
 
 // Define interaction properties
-const contactMaterial = new CANNON.ContactMaterial(wallMaterial, marbleMaterial, {
-    friction: 0.1,
-    restitution: 0.7, // A bit bouncy
-});
-
-// We need to add this to the physics world in the main file, but we can export it from here
-export function addContactMaterial(world) {
-    world.addContactMaterial(contactMaterial);
+export function getMarbleContactMaterial() {
+    return new CANNON.ContactMaterial(getWallMaterial(), marbleMaterial, {
+        friction: 0.1,
+        restitution: 0.7, // A bit bouncy
+    });
 }
 
 export function createMarble(scene, world, username, color) {
@@ -36,8 +33,8 @@ export function createMarble(scene, world, username, color) {
     });
     
     const startX = (Math.random() - 0.5) * 8;
-    const startZ = -22 + (Math.random() - 0.5) * 4;
-    body.position.set(startX, 15, startZ);
+    const startZ = -38 + (Math.random() - 0.5) * 4;
+    body.position.set(startX, 5.5, startZ);
     world.addBody(body);
 
     const marble = { mesh, body, username };
