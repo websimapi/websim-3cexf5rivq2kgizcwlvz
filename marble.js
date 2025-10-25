@@ -2,9 +2,9 @@ import * as THREE from 'three';
 import * as CANNON from 'cannon-es';
 import { FontLoader } from 'three/addons/loaders/FontLoader.js';
 import { TextGeometry } from 'three/addons/geometries/TextGeometry.js';
+import { wallMaterial } from './track.js';
 
 const marbleMaterial = new CANNON.Material('marbleMaterial');
-const wallMaterial = new CANNON.Material('wallMaterial');
 
 // Define interaction properties
 const contactMaterial = new CANNON.ContactMaterial(wallMaterial, marbleMaterial, {

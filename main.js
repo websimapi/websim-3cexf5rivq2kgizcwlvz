@@ -28,7 +28,7 @@ function init() {
 
     // Camera
     camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-    camera.position.set(0, 20, 30);
+    camera.position.set(0, 30, 40);
 
     // Renderer
     renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('game-canvas'), antialias: true });
@@ -128,8 +128,9 @@ function resetRace() {
     raceState = 'waiting';
     
     marbles.forEach(marble => {
-        scene.remove(marble.mesh);
-        physicsWorld.removeBody(marble.body);
+        if(marble.mesh) scene.remove(marble.mesh);
+        if(marble.body) physicsWorld.removeBody(marble.body);
+        if(marble.label) scene.remove(marble.label);
     });
     marbles.length = 0;
     players.clear();
