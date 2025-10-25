@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Twitch Marble Racing</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="game-container">
+        <canvas id="c"></canvas>
+    </div>
+
+    <div id="ui-container">
+        <div id="connection-status">Enter a channel and connect.</div>
+        <div id="leaderboard" class="hidden">
+            <h2>Leaderboard</h2>
+            <ol id="leaderboard-list"></ol>
+        </div>
+        <div id="game-state">
+            <div id="join-message">Type !join to enter the race!</div>
+            <div id="countdown" class="hidden"></div>
+        </div>
+        <div id="settings">
+            <label for="twitch-channel">Twitch Channel:</label>
+            <input type="text" id="twitch-channel" placeholder="e.g., gamesdonequick">
+            <button id="connect-btn">Connect</button>
+            <button id="start-race-btn" disabled>Start Race</button>
+        </div>
+        <div id="join-list-container">
+            <h4>Joined Players:</h4>
+            <ul id="join-list"></ul>
+        </div>
+    </div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/tmi.js/dist/tmi.min.js"></script>
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://esm.sh/three@0.163.0",
+            "cannon-es": "https://esm.sh/cannon-es@0.20.0"
+        }
+    }
+    </script>
+    <script type="module" src="main.js"></script>
+<script defer src="https://static.cloudflareinsights.com/beacon.min.js/v8c78df7c7c0f484497ecbca7046644da1771523124516" integrity="sha512-8DS7rgIrAmghBFwoOTujcf6D9rXvH8xm8JQ1Ja01h9QX8EzXldiszufYa4IFfKdLUKTTrnSFXLDkUEOTrZQ8Qg==" data-cf-beacon='{"version":"2024.11.0","token":"4c6229722a6346bc8eb5cb0e5eae5d41","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
+</body>
+</html>
+
