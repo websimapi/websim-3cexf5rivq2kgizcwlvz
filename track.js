@@ -97,9 +97,44 @@ function createTurn(scene, world, { width, angle }, startPosition, startRotation
         info: { type: 'turn', angle }
     });
 
-    // The walls are part of the piece, so we can remove this custom logic for now
-    // as createTrackPiece handles the physics and visual representation.
-    // Simpler walls can be added back later if needed.
+    // --- Add Walls ---
+    const wallHeight = 2;
+    const wallThickness = 0.5;
+    const numSegments = 10; // More segments for a smoother curve
+    const segmentAngle = turnAngleRad / numSegments;
+
+    const wallYOffset = wallHeight / 2 - 0.1;
+
+    // Outer Wall
+    const outerRadius = width;
+    for (let i = 0; i < numSegments; i++) {
+        const angle = i * segmentAngle;
+        const segmentRotation = startRotation.clone().multiply(
+            new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), angle + segmentAngle / 2)
+        );
+
+        const segmentLength = outerRadius * 2 * Math.sin(segmentAngle / 2);
+
+        const localPos = new THREE.Vector3(
+            isRightTurn ? outerRadius * Math.sin(angle + segmentAngle / 2) : -outerRadius * Math.sin(angle + segmentAngle / 2),
+            wallYOffset,
+            outerRadius * (1 - Math.cos(angle + segmentAngle / 2))
+        );
+
+        const wallPos = pivotPoint.clone().add(localPos.applyQuaternion(startRotation));
+        
+        createTrackPiece(scene, world, {
+            size: { x: segmentLength, y: wallHeight, z: wallThickness },
+            position: wallPos,
+            quaternion: segmentRotation,
+            color: 0x444444,
+            info: { type: 'wall' }
+        });
+    }
+
+    // Inner Wall (only if there's a radius, which there isn't with this pivot)
+    // The current pivot point is on the inner edge, so the inner radius is 0. No inner wall needed.
+
 
     // Calculate the end rotation by applying the full turn angle
     const endRotation = startRotation.clone().multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), turnAngleRad));
